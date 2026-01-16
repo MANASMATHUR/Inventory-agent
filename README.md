@@ -84,12 +84,12 @@ stateDiagram-v2
     [*] --> Assessing
     
     Assessing --> LowRisk: No Negative Methods Found
-    Assessing --> MediumRisk: "Congestion", "Waiting Time > 2 Days", "Dwell Time"
-    Assessing --> HighRisk: "Strike", "Force Majeure", "Labor Action", "Typhoon"
+    Assessing --> MediumRisk: Congestion or Waiting Time
+    Assessing --> HighRisk: Strike or Force Majeure
     
-    LowRisk --> Action1: "Monitor standard tracking milestones."
-    MediumRisk --> Action2: "Anticipate 2-4 day berthing delay."
-    HighRisk --> Action3: "CRITICAL: Divert cargo immediately."
+    LowRisk --> Action1: Standard Monitoring
+    MediumRisk --> Action2: Anticipate 2-4 day delay
+    HighRisk --> Action3: CRITICAL Divert cargo immediately
 ```
 
 ---
