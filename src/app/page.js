@@ -329,94 +329,127 @@ export default function LogisticsDashboard() {
                                     className="space-y-6"
                                 >
                                     {/* Risk Score Card */}
-                                    <div className={cn(
-                                        "p-8 rounded-[2rem] border-2 shadow-2xl overflow-hidden relative",
-                                        result.risk_assessment.delay_risk === "HIGH" ? "border-destructive/50 bg-destructive/5" :
-                                            result.risk_assessment.delay_risk === "MEDIUM" ? "border-warning/50 bg-warning/5" :
-                                                "border-success/50 bg-success/5"
-                                    )}>
-                                        <div className="flex items-center justify-between relative z-10">
-                                            <div>
-                                                <p className="text-sm font-black uppercase tracking-widest opacity-60 mb-2">Estimated Risk Level</p>
-                                                <h2 className={cn(
-                                                    "text-6xl font-black tracking-tighter",
-                                                    result.risk_assessment.delay_risk === "HIGH" ? "text-destructive" :
-                                                        result.risk_assessment.delay_risk === "MEDIUM" ? "text-warning" :
-                                                            "text-success"
-                                                )}>
-                                                    {result.risk_assessment.delay_risk}
-                                                </h2>
+                                    {result.error ? (
+                                        <div className="p-8 rounded-[2rem] border border-destructive/30 bg-destructive/5 shadow-2xl relative overflow-hidden">
+                                            <div className="flex items-center gap-4 mb-4 text-destructive">
+                                                <AlertTriangle className="h-8 w-8" />
+                                                <h3 className="text-xl font-black uppercase tracking-tight">Intelligence Offline</h3>
                                             </div>
-                                            <div className={cn(
-                                                "w-24 h-24 rounded-full flex items-center justify-center border-4",
-                                                result.risk_assessment.delay_risk === "HIGH" ? "border-destructive/20 bg-destructive/10" :
-                                                    result.risk_assessment.delay_risk === "MEDIUM" ? "border-warning/20 bg-warning/10" :
-                                                        "border-success/20 bg-success/10"
-                                            )}>
-                                                {result.risk_assessment.delay_risk === "HIGH" ? <AlertTriangle className="h-10 w-10 text-destructive" /> :
-                                                    result.risk_assessment.delay_risk === "MEDIUM" ? <AlertTriangle className="h-10 w-10 text-warning" /> :
-                                                        <CheckCircle2 className="h-10 w-10 text-success" />}
-                                            </div>
-                                        </div>
-
-                                        <div className="mt-8 pt-8 border-t border-black/5 dark:border-white/5 relative z-10">
-                                            <div className="flex items-start gap-3">
-                                                <Navigation className="h-5 w-5 mt-1 opacity-50" />
-                                                <div>
-                                                    <p className="text-xs font-bold uppercase opacity-50 mb-1">Primary Root Cause</p>
-                                                    <p className="text-lg font-bold leading-tight">{result.risk_assessment.primary_cause}</p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Signals Feed */}
-                                    <div className="bg-background/50 border border-primary/10 rounded-3xl p-6 backdrop-blur-sm">
-                                        <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2">
-                                            <Search className="h-4 w-4 text-primary" /> Operational Signals
-                                        </h3>
-
-                                        {result.signals_detected.length > 0 ? (
-                                            <div className="space-y-4">
-                                                {result.signals_detected.map((signal, idx) => (
-                                                    <div key={idx} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex gap-4 transition-all hover:bg-white/10">
-                                                        <div className={cn(
-                                                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
-                                                            signal.severity === "HIGH" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
-                                                        )}>
-                                                            <Globe className="h-5 w-5" />
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex items-center gap-2 mb-1">
-                                                                <span className="text-[10px] font-bold uppercase opacity-50">{signal.source}</span>
-                                                                <span className="w-1 h-1 rounded-full bg-white/20" />
-                                                                <span className="text-[10px] font-mono opacity-50">{signal.date || "Recent"}</span>
+                                            <p className="text-sm font-medium leading-relaxed opacity-80 mb-6">
+                                                {result.error}
+                                            </p>
+                                            {result.supported_origins && (
+                                                <div className="space-y-4">
+                                                    <p className="text-[10px] font-black uppercase tracking-widest opacity-60">Verified Support Matrix:</p>
+                                                    <div className="grid grid-cols-2 gap-4">
+                                                        <div className="p-3 rounded-xl bg-background/50 border border-primary/10">
+                                                            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Ports</p>
+                                                            <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+                                                                {result.supported_origins.map(o => <span key={o} className="px-2 py-1 bg-primary/5 rounded">{o}</span>)}
                                                             </div>
-                                                            <p className="text-sm font-medium leading-relaxed">{signal.signal}</p>
+                                                        </div>
+                                                        <div className="p-3 rounded-xl bg-background/50 border border-primary/10">
+                                                            <p className="text-[10px] uppercase font-bold text-muted-foreground mb-2">Carriers</p>
+                                                            <div className="flex flex-wrap gap-2 text-[10px] font-bold">
+                                                                {result.supported_carriers.map(c => <span key={c} className="px-2 py-1 bg-primary/5 rounded">{c}</span>)}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <div className="py-12 text-center border-2 border-dashed border-primary/10 rounded-2xl">
-                                                <p className="text-sm text-muted-foreground italic">No negative signals detected across monitored nodes.</p>
-                                            </div>
-                                        )}
-                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <>
+                                            <div className={cn(
+                                                "p-8 rounded-[2rem] border-2 shadow-2xl overflow-hidden relative",
+                                                result.risk_assessment?.delay_risk === "HIGH" ? "border-destructive/50 bg-destructive/5" :
+                                                    result.risk_assessment?.delay_risk === "MEDIUM" ? "border-warning/50 bg-warning/5" :
+                                                        "border-success/50 bg-success/5"
+                                            )}>
+                                                <div className="flex items-center justify-between relative z-10">
+                                                    <div>
+                                                        <p className="text-sm font-black uppercase tracking-widest opacity-60 mb-2">Estimated Risk Level</p>
+                                                        <h2 className={cn(
+                                                            "text-6xl font-black tracking-tighter",
+                                                            result.risk_assessment?.delay_risk === "HIGH" ? "text-destructive" :
+                                                                result.risk_assessment?.delay_risk === "MEDIUM" ? "text-warning" :
+                                                                    "text-success"
+                                                        )}>
+                                                            {result.risk_assessment?.delay_risk || "UNKNOWN"}
+                                                        </h2>
+                                                    </div>
+                                                    <div className={cn(
+                                                        "w-24 h-24 rounded-full flex items-center justify-center border-4",
+                                                        result.risk_assessment?.delay_risk === "HIGH" ? "border-destructive/20 bg-destructive/10" :
+                                                            result.risk_assessment?.delay_risk === "MEDIUM" ? "border-warning/20 bg-warning/10" :
+                                                                "border-success/20 bg-success/10"
+                                                    )}>
+                                                        {result.risk_assessment?.delay_risk === "HIGH" ? <AlertTriangle className="h-10 w-10 text-destructive" /> :
+                                                            result.risk_assessment?.delay_risk === "MEDIUM" ? <AlertTriangle className="h-10 w-10 text-warning" /> :
+                                                                <CheckCircle2 className="h-10 w-10 text-success" />}
+                                                    </div>
+                                                </div>
 
-                                    {/* Recommendation */}
-                                    <div className="p-6 rounded-3xl bg-primary text-primary-foreground shadow-xl shadow-primary/20">
-                                        <h3 className="text-xs font-black uppercase tracking-widest opacity-80 mb-3 flex items-center gap-2">
-                                            <Zap className="h-4 w-4 fill-current" /> Recommended Action
-                                        </h3>
-                                        <p className="text-lg font-bold leading-relaxed">
-                                            "{result.recommended_action}"
-                                        </p>
-                                    </div>
+                                                <div className="mt-8 pt-8 border-t border-black/5 dark:border-white/5 relative z-10">
+                                                    <div className="flex items-start gap-3">
+                                                        <Navigation className="h-5 w-5 mt-1 opacity-50" />
+                                                        <div>
+                                                            <p className="text-xs font-bold uppercase opacity-50 mb-1">Primary Root Cause</p>
+                                                            <p className="text-lg font-bold leading-tight">{result.risk_assessment?.primary_cause || "Analyzing signals..."}</p>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
 
-                                    <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-[0.2em] opacity-50">
-                                        Confidence: {(result.risk_assessment.confidence * 100).toFixed(0)}% • Sources: 3 Verified
-                                    </p>
+                                            {/* Signals Feed */}
+                                            <div className="bg-background/50 border border-primary/10 rounded-3xl p-6 backdrop-blur-sm">
+                                                <h3 className="text-sm font-black uppercase tracking-widest mb-6 flex items-center gap-2">
+                                                    <Search className="h-4 w-4 text-primary" /> Operational Signals
+                                                </h3>
+
+                                                {result.signals_detected?.length > 0 ? (
+                                                    <div className="space-y-4">
+                                                        {result.signals_detected.map((signal, idx) => (
+                                                            <div key={idx} className="p-4 rounded-2xl bg-white/5 border border-white/5 flex gap-4 transition-all hover:bg-white/10">
+                                                                <div className={cn(
+                                                                    "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                                                                    signal.severity === "HIGH" ? "bg-destructive/10 text-destructive" : "bg-primary/10 text-primary"
+                                                                )}>
+                                                                    <Globe className="h-5 w-5" />
+                                                                </div>
+                                                                <div>
+                                                                    <div className="flex items-center gap-2 mb-1">
+                                                                        <span className="text-[10px] font-bold uppercase opacity-50">{signal.source}</span>
+                                                                        <span className="w-1 h-1 rounded-full bg-white/20" />
+                                                                        <span className="text-[10px] font-mono opacity-50">{signal.date || "Recent"}</span>
+                                                                    </div>
+                                                                    <p className="text-sm font-medium leading-relaxed">{signal.signal}</p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="py-12 text-center border-2 border-dashed border-primary/10 rounded-2xl">
+                                                        <p className="text-sm text-muted-foreground italic">No negative signals detected across monitored nodes.</p>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* Recommendation */}
+                                            <div className="p-6 rounded-3xl bg-primary text-primary-foreground shadow-xl shadow-primary/20">
+                                                <h3 className="text-xs font-black uppercase tracking-widest opacity-80 mb-3 flex items-center gap-2">
+                                                    <Zap className="h-4 w-4 fill-current" /> Recommended Action
+                                                </h3>
+                                                <p className="text-lg font-bold leading-relaxed">
+                                                    "{result.recommended_action || "Continue monitoring."}"
+                                                </p>
+                                            </div>
+
+                                            <p className="text-center text-[10px] uppercase font-bold text-muted-foreground tracking-[0.2em] opacity-50">
+                                                Confidence: {(result.risk_assessment?.confidence * 100 || 0).toFixed(0)}% • Sources: {result.signals_detected?.length || 0} Analyzed
+                                            </p>
+                                        </>
+                                    )}
 
                                 </motion.div>
                             ) : (
