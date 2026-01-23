@@ -46,6 +46,31 @@ export default function LogisticsDashboard() {
         setIsMounted(true);
     }, []);
 
+    const buildSignalTrend = (signals) => {
+        const buckets = Array(7).fill(0);
+        if (!Array.isArray(signals)) return null;
+        const now = Date.now();
+        let hasDatedSignals = false;
+
+        signals.forEach((signal) => {
+            if (!signal?.date) return;
+            const parsed = Date.parse(signal.date);
+            if (!Number.isFinite(parsed)) return;
+            const daysAgo = Math.floor((now - parsed) / (1000 * 60 * 60 * 24));
+            if (daysAgo < 0 || daysAgo > 6) return;
+            hasDatedSignals = true;
+            const index = 6 - daysAgo;
+            buckets[index] += 1;
+        });
+
+        if (!hasDatedSignals) return null;
+
+        return {
+            buckets,
+            max: Math.max(...buckets)
+        };
+    };
+
     // Simulation of "Swarm" visuals while waiting for API
     useEffect(() => {
         if (isRunning) {
@@ -99,6 +124,7 @@ export default function LogisticsDashboard() {
     };
 
     if (!isMounted) return null;
+    const signalTrend = buildSignalTrend(result?.signals_detected);
 
     return (
         <div className="min-h-screen bg-background relative selection:bg-primary/30">
@@ -398,6 +424,107 @@ export default function LogisticsDashboard() {
                                                             <p className="text-lg font-bold leading-tight">{result.risk_assessment?.primary_cause || "Analyzing signals..."}</p>
                                                         </div>
                                                     </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Analysis Overview */}
+                                            <div className="bg-background/60 border border-primary/10 rounded-3xl p-6 backdrop-blur-sm">
+                                                <div className="flex items-center justify-between mb-4">
+                                                    <h3 className="text-sm font-black uppercase tracking-widest flex items-center gap-2">
+                                                        <TrendingUp className="h-4 w-4 text-primary" /> Analysis Overview
+                                                    </h3>
+                                                    {result.shipment_context?.discovery_used && (
+                                                        <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1 rounded-full bg-primary/10 text-primary border border-primary/20">
+                                                            Discovery Mode
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="text-sm font-semibold leading-relaxed">
+                                                    {result.analysis?.summary || "Signals synthesized into a unified risk profile."}
+                                                </p>
+                                                <div className="grid grid-cols-2 gap-4 mt-5 text-xs font-bold uppercase tracking-widest text-muted-foreground">
+                                                    <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+                                                        <p className="mb-2">Risk Score</p>
+                                                        <p className="text-base font-black text-foreground">
+                                                            {result.analysis?.risk_score ?? "N/A"}
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+                                                        <p className="mb-2">Signal Density</p>
+                                                        <p className="text-base font-black text-foreground">
+                                                            {result.analysis?.signal_density ?? "N/A"}
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+                                                        <p className="mb-2">Recent Signals</p>
+                                                        <p className="text-base font-black text-foreground">
+                                                            {result.analysis?.recency?.buckets?.recent ?? 0}
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-3 rounded-2xl bg-white/5 border border-white/10">
+                                                        <p className="mb-2">Stale Signals</p>
+                                                        <p className="text-base font-black text-foreground">
+                                                            {result.analysis?.recency?.buckets?.stale ?? 0}
+                                                        </p>
+                                                    </div>
+                                                    <div className="p-3 rounded-2xl bg-white/5 border border-white/10 col-span-2">
+                                                        <p className="mb-2">Latest Signal Date</p>
+                                                        <p className="text-sm font-black text-foreground">
+                                                            {result.analysis?.recency?.latest_signal_date || "Unknown"}
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Confidence Breakdown</p>
+                                                    <div className="flex flex-wrap gap-3 text-xs font-bold">
+                                                        <span className="px-2 py-1 rounded-full bg-primary/10 text-primary">
+                                                            Weighted: {((result.analysis?.confidence_breakdown?.weighted_confidence ?? 0) * 100).toFixed(0)}%
+                                                        </span>
+                                                        <span className="px-2 py-1 rounded-full bg-white/5 text-muted-foreground">
+                                                            Severity: {result.analysis?.confidence_breakdown?.severity_weight ?? 0}
+                                                        </span>
+                                                        <span className="px-2 py-1 rounded-full bg-white/5 text-muted-foreground">
+                                                            Recency: {result.analysis?.confidence_breakdown?.recency_weight ?? 0}
+                                                        </span>
+                                                        <span className="px-2 py-1 rounded-full bg-white/5 text-muted-foreground">
+                                                            Coverage: {result.analysis?.confidence_breakdown?.coverage_weight ?? 0}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="mt-5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Source Timings</p>
+                                                    {result.analysis?.source_timings?.length ? (
+                                                        <div className="space-y-2 text-xs font-semibold">
+                                                            {result.analysis.source_timings.map((entry, idx) => (
+                                                                <div key={`${entry.source}-${idx}`} className="flex items-center justify-between text-muted-foreground">
+                                                                    <span className="truncate max-w-[65%]">{entry.source}</span>
+                                                                    <span className="text-foreground">{entry.duration_ms} ms</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-muted-foreground">No timing data reported.</p>
+                                                    )}
+                                                </div>
+                                                <div className="mt-5 p-4 rounded-2xl bg-white/5 border border-white/10">
+                                                    <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2">Signal Density (Last 7 Days)</p>
+                                                    {signalTrend ? (
+                                                        <div className="flex items-end gap-2 h-16">
+                                                            {signalTrend.buckets.map((count, idx) => (
+                                                                <div key={idx} className="flex-1 flex flex-col items-center gap-1">
+                                                                    <div
+                                                                        className="w-full rounded-md bg-primary/60"
+                                                                        style={{
+                                                                            height: `${Math.max(4, (count / Math.max(1, signalTrend.max)) * 56)}px`
+                                                                        }}
+                                                                    />
+                                                                    <span className="text-[9px] text-muted-foreground">{count}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <p className="text-xs text-muted-foreground">No dated signals yet.</p>
+                                                    )}
                                                 </div>
                                             </div>
 

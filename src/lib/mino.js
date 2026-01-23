@@ -3,7 +3,7 @@
 const MINO_API_URL = "https://mino.ai/v1/automation/run-sse";
 const MINO_API_KEY = process.env.MINO_API_KEY;
 
-export async function runAgent(sku, intendedUpdate, contextUrl) {
+export async function runAgent(sku, intendedUpdate, contextUrl, options = {}) {
     const targetUrl = contextUrl || "https://inventory-demo-dashboard.com";
     const missionType = intendedUpdate ? `cross-verify the safety of an intended stock update ("${intendedUpdate}")` : `perform a general integrity audit to ensure data consistency across sources`;
 
@@ -57,6 +57,7 @@ ${contextUrl ? `\n**CRITICAL CONTEXT**: The user has provided a specific Source 
                 "X-API-Key": MINO_API_KEY,
                 "Content-Type": "application/json",
             },
+            signal: options.signal,
             body: JSON.stringify({
                 url: targetUrl,
                 goal: goal,
@@ -76,7 +77,7 @@ ${contextUrl ? `\n**CRITICAL CONTEXT**: The user has provided a specific Source 
     }
 }
 
-export async function runGenericAgent(url, goal) {
+export async function runGenericAgent(url, goal, options = {}) {
     try {
         const response = await fetch(MINO_API_URL, {
             method: "POST",
@@ -84,6 +85,7 @@ export async function runGenericAgent(url, goal) {
                 "X-API-Key": MINO_API_KEY,
                 "Content-Type": "application/json",
             },
+            signal: options.signal,
             body: JSON.stringify({
                 url: url,
                 goal: goal,

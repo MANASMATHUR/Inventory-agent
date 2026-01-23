@@ -1,4 +1,4 @@
-// File: C:\Users\manas\Desktop\Mino API Use Cases\src\app\page.js
+// File: C:\Users\manas\Desktop\Logistics Sentry\src\app\page.js
 import * as entry from '../../../src/app/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 

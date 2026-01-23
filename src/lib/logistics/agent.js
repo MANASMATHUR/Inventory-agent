@@ -23,6 +23,13 @@ const SOURCE_KNOWLEDGE_BASE = {
                 url: "http://www.portshanghai.com.cn/en/",
                 type: "port_authority"
             }
+        ],
+        "Mumbai": [
+            {
+                name: "Mumbai Port Authority",
+                url: "https://mumbaiport.gov.in",
+                type: "port_authority"
+            }
         ]
     },
     carriers: {
@@ -39,14 +46,115 @@ const SOURCE_KNOWLEDGE_BASE = {
                 url: "https://www.msc.com/en/newsroom/customer-advisories",
                 type: "carrier_advisory"
             }
+        ],
+        "CMA CGM": [
+            {
+                name: "CMA CGM News & Advisories",
+                url: "https://www.cma-cgm.com/news",
+                type: "carrier_advisory"
+            }
         ]
     }
     // Contextual sources like Weather or Labor generic sites could be added
 };
 
+function buildDiscoverySources(origin_port, carrier) {
+    const sources = [];
+    if (origin_port) {
+        const portQuery = encodeURIComponent(`${origin_port} port authority operations status`);
+        sources.push({
+            name: `Discovery: ${origin_port} Port Authority`,
+            url: `https://duckduckgo.com/html/?q=${portQuery}`,
+            type: "custom_discovery",
+            goal: `
+### MISSION: PORT AUTHORITY INTELLIGENCE DISCOVERY
+TARGET: ${origin_port}
+
+You are a Logistics Intelligence Scout. Your job is to locate the official port authority or terminal operations page for ${origin_port}, then extract operational status signals.
+
+### INSTRUCTIONS:
+1. Search for the official port authority or terminal operations page for ${origin_port}.
+2. Navigate to the official source and look for operational updates, advisories, or congestion metrics.
+3. Extract specific metrics/quotes with dates where possible.
+
+### REQUIRED OUTPUT (JSON ONLY):
+{
+  "scan_status": "completed",
+  "operational_status": "NORMAL" | "DISRUPTED" | "UNKNOWN",
+  "signals": [
+    {
+      "summary": "Detailed finding with numbers/quotes if available",
+      "severity": "LOW" | "MEDIUM" | "HIGH",
+      "date": "YYYY-MM-DD",
+      "category": "METRIC" | "QUOTE" | "STATUS"
+    }
+  ]
+}
+`
+        });
+    }
+    if (carrier) {
+        const carrierQuery = encodeURIComponent(`${carrier} customer advisories`);
+        sources.push({
+            name: `Discovery: ${carrier} Advisories`,
+            url: `https://duckduckgo.com/html/?q=${carrierQuery}`,
+            type: "custom_discovery",
+            goal: `
+### MISSION: CARRIER ADVISORY INTELLIGENCE DISCOVERY
+TARGET: ${carrier}
+
+You are a Logistics Intelligence Scout. Your job is to locate ${carrier}'s official customer advisories or operations updates page, then extract operational signals.
+
+### INSTRUCTIONS:
+1. Find the official ${carrier} advisories/alerts/newsroom page.
+2. Navigate to the most recent advisories and extract concrete metrics or dates.
+3. Prefer official carrier sources over third-party news.
+
+### REQUIRED OUTPUT (JSON ONLY):
+{
+  "scan_status": "completed",
+  "operational_status": "NORMAL" | "DISRUPTED" | "UNKNOWN",
+  "signals": [
+    {
+      "summary": "Detailed finding with numbers/quotes if available",
+      "severity": "LOW" | "MEDIUM" | "HIGH",
+      "date": "YYYY-MM-DD",
+      "category": "METRIC" | "QUOTE" | "STATUS"
+    }
+  ]
+}
+`
+        });
+    }
+    return sources;
+}
+
 // --- STAGE 2: PARALLEL AGENT EXECUTION ---
+function createSseParser(onEvent) {
+    let buffer = "";
+    return (chunk) => {
+        buffer += chunk;
+        const parts = buffer.split("\n\n");
+        buffer = parts.pop() || "";
+        for (const part of parts) {
+            const lines = part.split("\n");
+            for (const line of lines) {
+                if (!line.startsWith("data: ")) continue;
+                const payload = line.slice(6).trim();
+                if (!payload) continue;
+                try {
+                    const data = JSON.parse(payload);
+                    onEvent(data);
+                } catch (e) {
+                    // Ignore partial JSON or non-JSON heartbeats.
+                }
+            }
+        }
+    };
+}
+
 async function analyzeSource(source) {
-    const goal = `
+    const defaultGoal = `
 ### MISSION: DEEP INTELLIGENCE EXTRACTION
 TARGET URL: ${source.url}
 
@@ -74,48 +182,57 @@ You are a Logistics Intelligence Scout. Your job is to extract DETAILED operatio
 }
 `;
 
-    try {
-        console.log(`[Agent] Scouting ${source.name}...`);
+    const startedAt = Date.now();
+    const timeoutAttempts = source.type === "custom_discovery" ? [300000] : [45000, 60000];
+    let lastError = null;
 
-        // Use a timeout race to prevent hanging agents
-        const agentPromise = runGenericAgent(source.url, goal);
-        const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error("Analysis timed out")), 28000)); // Slightly increased limit
+    console.log(`[Agent] Scouting ${source.name}...`);
 
-        const stream = await Promise.race([agentPromise, timeoutPromise]);
+    for (let attempt = 0; attempt < timeoutAttempts.length; attempt++) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeoutAttempts[attempt]);
 
-        const reader = stream.getReader();
-        const decoder = new TextDecoder();
-        let fullText = "";
+        try {
+            const goal = source.goal || defaultGoal;
+            const stream = await runGenericAgent(source.url, goal, { signal: controller.signal });
+            const reader = stream.getReader();
+            const decoder = new TextDecoder();
+            let finalResult = null;
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
-            const chunk = decoder.decode(value, { stream: true });
-            fullText += chunk;
-        }
+            const parse = createSseParser((data) => {
+                if (data.final_result) {
+                    finalResult = data.final_result;
+                }
+            });
 
-        const lines = fullText.split('\n');
-        let finalResult = null;
-
-        for (const line of lines) {
-            if (line.startsWith("data: ")) {
-                try {
-                    const data = JSON.parse(line.slice(6));
-                    if (data.final_result) {
-                        finalResult = data.final_result;
-                    }
-                } catch (e) { }
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                const chunk = decoder.decode(value, { stream: true });
+                parse(chunk);
             }
+
+            return {
+                source: source.name,
+                findings: finalResult,
+                duration_ms: Date.now() - startedAt,
+                attempts: attempt + 1
+            };
+        } catch (error) {
+            lastError = error;
+            if (error.name !== "AbortError") break;
+        } finally {
+            clearTimeout(timeoutId);
         }
+    }
 
-        return {
-            source: source.name,
-            findings: finalResult
-        };
-
-    } catch (error) {
-        console.error(`[Agent] Failed to analyze ${source.name}:`, error);
-        return { source: source.name, error: error.message };
+    console.error(`[Agent] Failed to analyze ${source.name}:`, lastError);
+    return {
+        source: source.name,
+        error: lastError?.name === "AbortError" ? "Analysis timed out" : lastError?.message,
+        duration_ms: Date.now() - startedAt,
+        attempts: timeoutAttempts.length,
+        error_at: new Date().toISOString()
     }
 }
 
@@ -125,6 +242,10 @@ function synthesizeRisk(context, findings) {
     let riskScore = 0;
     let signals = [];
     let primaryCauses = new Set();
+    let severityCounts = { HIGH: 0, MEDIUM: 0, LOW: 0 };
+    let categoryCounts = { METRIC: 0, QUOTE: 0, STATUS: 0 };
+    let recencyBuckets = { recent: 0, stale: 0, unknown: 0 };
+    let signalDates = [];
 
     findings.forEach(f => {
         if (f.findings && f.findings.signals) {
@@ -144,6 +265,21 @@ function synthesizeRisk(context, findings) {
                 if (s.severity === "HIGH") riskScore += 50;
                 if (s.severity === "MEDIUM") riskScore += 20;
                 if (s.severity === "LOW") riskScore += 0; // Low doesn't increase risk, but provides context
+                if (severityCounts[s.severity] !== undefined) severityCounts[s.severity] += 1;
+                if (categoryCounts[s.category] !== undefined) categoryCounts[s.category] += 1;
+                if (s.date) {
+                    signalDates.push(s.date);
+                    const parsed = Date.parse(s.date);
+                    if (Number.isFinite(parsed)) {
+                        const ageDays = (Date.now() - parsed) / (1000 * 60 * 60 * 24);
+                        if (ageDays <= 14) recencyBuckets.recent += 1;
+                        else recencyBuckets.stale += 1;
+                    } else {
+                        recencyBuckets.unknown += 1;
+                    }
+                } else {
+                    recencyBuckets.unknown += 1;
+                }
 
                 if (s.severity !== "LOW") {
                     // Try to infer cause from summary keywords
@@ -155,20 +291,30 @@ function synthesizeRisk(context, findings) {
                 }
             });
         } else if (f.error) {
+            const errorDate = f.error_at || new Date().toISOString();
             signals.push({
                 source: f.source,
                 signal: "Connection timed out during deep scan.",
-                date: "Now",
+                date: errorDate,
                 severity: "LOW"
             });
+            severityCounts.LOW += 1;
+            categoryCounts.STATUS += 1;
+            signalDates.push(errorDate);
+            recencyBuckets.unknown += 1;
         } else {
             // Fallback for empty findings (likely normal)
+            const fallbackDate = new Date().toISOString();
             signals.push({
                 source: f.source,
                 signal: "Verified: No negative operational constraints found.",
-                date: "Now",
+                date: fallbackDate,
                 severity: "LOW"
             });
+            severityCounts.LOW += 1;
+            categoryCounts.STATUS += 1;
+            signalDates.push(fallbackDate);
+            recencyBuckets.unknown += 1;
         }
     });
 
@@ -178,6 +324,13 @@ function synthesizeRisk(context, findings) {
 
     let confidence = 0.85;
     const causes = Array.from(primaryCauses).join(" + ");
+    const normalizedRiskScore = Math.min(100, Math.max(0, riskScore));
+    const sourceTimings = findings
+        .filter(f => typeof f.duration_ms === "number")
+        .map(f => ({ source: f.source, duration_ms: f.duration_ms }));
+    const totalSignals = signals.length;
+    const signalDensity = totalSignals > 0 ? totalSignals / Math.max(1, findings.length) : 0;
+    const latestSignalDate = signalDates.length > 0 ? signalDates.sort().slice(-1)[0] : null;
 
     // Generate specific recommendation
     let action = "Network operating normally. Continue standard monitoring.";
@@ -190,12 +343,59 @@ function synthesizeRisk(context, findings) {
         else action = "Monitor closely. Minor disruptions reported.";
     }
 
+    const severityTotal = severityCounts.HIGH + severityCounts.MEDIUM + severityCounts.LOW;
+    const severityWeight = severityTotal > 0
+        ? (severityCounts.HIGH * 1 + severityCounts.MEDIUM * 0.6 + severityCounts.LOW * 0.2) / severityTotal
+        : 0.2;
+    const recencyTotal = recencyBuckets.recent + recencyBuckets.stale + recencyBuckets.unknown;
+    const recencyWeight = recencyTotal > 0
+        ? (recencyBuckets.recent * 1 + recencyBuckets.stale * 0.4 + recencyBuckets.unknown * 0.6) / recencyTotal
+        : 0.6;
+    const successfulSources = findings.filter(f => f.findings && f.findings.signals).length;
+    const coverageWeight = findings.length > 0
+        ? Math.min(1, successfulSources / findings.length)
+        : 0.4;
+
+    const confidenceWeighted = Math.min(
+        0.99,
+        Math.max(0.2, (severityWeight * 0.4) + (recencyWeight * 0.35) + (coverageWeight * 0.25))
+    );
+
+    confidence = Math.min(confidence, confidenceWeighted);
+
+    const summary = [
+        `Risk ${riskLevel}`,
+        causes ? `Causes: ${causes}` : "Causes: Normal Operations",
+        `Signals: ${signals.length}`,
+        `Recent: ${recencyBuckets.recent}, Stale: ${recencyBuckets.stale}`
+    ].join(" • ");
+
     return {
         shipment_context: context,
         risk_assessment: {
             delay_risk: riskLevel,
             primary_cause: causes || "Normal Operations",
             confidence: Math.min(0.99, confidence)
+        },
+        analysis: {
+            risk_score: normalizedRiskScore,
+            evidence_counts: {
+                severity: severityCounts,
+                category: categoryCounts
+            },
+            source_timings: sourceTimings,
+            signal_density: Number(signalDensity.toFixed(2)),
+            recency: {
+                buckets: recencyBuckets,
+                latest_signal_date: latestSignalDate
+            },
+            confidence_breakdown: {
+                weighted_confidence: Number(confidenceWeighted.toFixed(2)),
+                severity_weight: Number(severityWeight.toFixed(2)),
+                recency_weight: Number(recencyWeight.toFixed(2)),
+                coverage_weight: Number(coverageWeight.toFixed(2))
+            },
+            summary
         },
         signals_detected: signals,
         recommended_action: action
@@ -205,20 +405,26 @@ function synthesizeRisk(context, findings) {
 
 // --- MAIN ENTRY POINT ---
 export async function assessDelayRisk(context) {
+    const startedAt = Date.now();
     const { origin_port, carrier, mode } = context;
 
     // 1. Discover
-    const sources = [
+    let sources = [
         ...(SOURCE_KNOWLEDGE_BASE.ports[origin_port] || []),
         ...(SOURCE_KNOWLEDGE_BASE.carriers[carrier] || [])
     ];
 
+    let discoveryUsed = false;
     if (sources.length === 0) {
-        return {
-            error: "No intelligent sources found for this context.",
-            supported_origins: Object.keys(SOURCE_KNOWLEDGE_BASE.ports),
-            supported_carriers: Object.keys(SOURCE_KNOWLEDGE_BASE.carriers)
-        };
+        sources = buildDiscoverySources(origin_port, carrier);
+        discoveryUsed = sources.length > 0;
+        if (!discoveryUsed) {
+            return {
+                error: "No intelligent sources found for this context.",
+                supported_origins: Object.keys(SOURCE_KNOWLEDGE_BASE.ports),
+                supported_carriers: Object.keys(SOURCE_KNOWLEDGE_BASE.carriers)
+            };
+        }
     }
 
     // 2. Parallel Actions
@@ -226,5 +432,12 @@ export async function assessDelayRisk(context) {
     const results = await Promise.all(sources.map(s => analyzeSource(s)));
 
     // 3. Synthesis
-    return synthesizeRisk(context, results);
+    const synthesized = synthesizeRisk({ ...context, discovery_used: discoveryUsed }, results);
+    return {
+        ...synthesized,
+        analysis: {
+            ...synthesized.analysis,
+            total_duration_ms: Date.now() - startedAt
+        }
+    };
 }

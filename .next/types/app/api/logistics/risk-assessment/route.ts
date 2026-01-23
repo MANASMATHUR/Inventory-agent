@@ -1,4 +1,4 @@
-// File: C:\Users\manas\Desktop\Mino API Use Cases\src\app\api\logistics\risk-assessment\route.js
+// File: C:\Users\manas\Desktop\Logistics Sentry\src\app\api\logistics\risk-assessment\route.js
 import * as entry from '../../../../../../src/app/api/logistics/risk-assessment/route.js'
 import type { NextRequest } from 'next/server.js'
 

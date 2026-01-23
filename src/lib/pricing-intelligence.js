@@ -3,7 +3,7 @@
 const MINO_API_URL = "https://mino.ai/v1/automation/run-sse";
 const MINO_API_KEY = process.env.MINO_API_KEY;
 
-export async function runPricingAnalysis(competitorUrl) {
+export async function runPricingAnalysis(competitorUrl, options = {}) {
     const goal = `
 ### MISSION: COMPETITIVE PRICING INTELLIGENCE (Target: ${competitorUrl})
 
@@ -65,6 +65,7 @@ You are a senior Strategic Pricing Analyst. Your mission is to extract the exact
                 "X-API-Key": MINO_API_KEY,
                 "Content-Type": "application/json",
             },
+            signal: options.signal,
             body: JSON.stringify({
                 url: competitorUrl,
                 goal: goal,
