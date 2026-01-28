@@ -5,7 +5,7 @@ A comprehensive logistics intelligence platform that helps supply chain teams tr
 
 
 ## Demo
-![Logistics Sentry Demo](20260128-0324-37.5637592.mp4)
+<video src="./20260128-0324-37.5637592.mp4" controls width="100%"></video>
 
 ## How Mino API is Used
 The Mino API powers the core execution layer. The orchestrator deploys **multiple Mino Agents** to navigate the live DOM of target logistics sites, bypassing static API limitations. These agents extract "Deep Metrics" (wait times, vessel counts, specific alerts) and return structured operational signals.
